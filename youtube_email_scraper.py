@@ -33,6 +33,7 @@ if not logger.handlers:
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
 
+
 class GoogleEmailScraper:
     def __init__(self, email: str, password: str, captcha_api_key: str, csv_file: str) -> None:
         """
@@ -48,7 +49,8 @@ class GoogleEmailScraper:
         self.csv_file = csv_file
         self.captcha_api_key = captcha_api_key
         self.urls_to_scrape = self.load_urls_from_csv()
-        self.output_file = 'extracted_emails.csv'  # Output file for saving extracted emails
+        # Output file for saving extracted emails
+        self.output_file = 'extracted_emails.csv'
         logger.info(f"Initialized scraper with CSV file: {self.csv_file}")
 
     def load_urls_from_csv(self) -> list[dict]:
@@ -132,9 +134,10 @@ class GoogleEmailScraper:
         except ElementNotVisibleException:
             logger.warning("Emails button not visible. Skipping...")
             return False
-        
+
         logger.info("Attempting to solve Captcha...")
         site_key = sb.get_attribute("#recaptcha", "data-sitekey")
+        logger.info(f"Site key: {site_key}")
         current_url = sb.get_current_url()
         solver = TwoCaptcha(self.captcha_api_key)
         response = solver.recaptcha(sitekey=site_key, url=current_url)
@@ -143,10 +146,11 @@ class GoogleEmailScraper:
         sb.execute_script(
             f'document.getElementById("g-recaptcha-response").value="{code}";')
         time.sleep(1)
-        sb.click("#submit-btn > span")
+        sb.click("#submit-btn")
         time.sleep(1)
         logger.info("Captcha solved and submitted successfully.")
         return True
+
     def save_emails_to_csv(self, url: str, email: str) -> None:
         """
         Save extracted emails to the original CSV file, updating 'email_id' column.
@@ -160,7 +164,8 @@ class GoogleEmailScraper:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 if row['channel_url'] == url:
-                    row['email_id'] = email  # Join emails with delimiter if needed
+                    # Join emails with delimiter if needed
+                    row['email_id'] = email
                 updated_rows.append(row)
 
         # Write updated rows back to the CSV file
@@ -177,7 +182,7 @@ class GoogleEmailScraper:
         logger.info("Starting email scraping process...")
 
         dir_name = sanitize_filename(self.email)
-        with SB(uc=True, user_data_dir=f"{Path().absolute()}\\{dir_name}") as sb:
+        with SB(uc=True, user_data_dir=f"{Path().absolute()}\\{dir_name}", headless=True) as sb:
             self.login_to_google(sb)
             for url_info in self.urls_to_scrape:
                 channel_url = url_info['channel_url']
@@ -189,15 +194,21 @@ class GoogleEmailScraper:
                         return
                     try:
                         email: str = sb.get_text("#email")
-                    except Exception:
-                        logger.error("Limit reached to read emails from the page.")
+                    except Exception as e:
+                        logger.error(e)
+                        logger.error(
+                            "Limit reached to read emails from the page.")
                         quit()
-                    self.save_emails_to_csv(channel_url, email)  # Update CSV with extracted emails
-                    logger.info(f"Extracted emails from {channel_url}: {email}")
+                    # Update CSV with extracted emails
+                    self.save_emails_to_csv(channel_url, email)
+                    logger.info(
+                        f"Extracted emails from {channel_url}: {email}")
                 else:
-                    logger.info(f"Skipping {channel_url} as email ID is provided: {email_id}")
+                    logger.info(
+                        f"Skipping {channel_url} as email ID is provided: {email_id}")
 
         logger.info("Email scraping process completed.")
+
 
 if __name__ == "__main__":
     # Load email and password from config.json
